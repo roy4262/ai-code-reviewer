@@ -7,7 +7,7 @@ const Home = () => {
     const [code,setCode]=useState("");
     const [reviewCode,setReviewCode]=useState("");
     const [loading,setLoading]=useState(false);
-    const [dark,setDark]=useState(false);
+    const [dark,setDark]=useState(true);
 
 
    const handleClear = ()=>{
