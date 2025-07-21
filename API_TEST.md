@@ -17,7 +17,7 @@
 ### **Step 1: Verify API Key**
 Your API key is set in `.env`:
 ```
-REACT_APP_GEMINI_API="AIzaSyDcD3MCbbGOlfZ2sykTRu3ScCkGojooqp4"
+
 ```
 
 ### **Step 2: Test with Simple Code**
