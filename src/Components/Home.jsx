@@ -1,104 +1,240 @@
-import React, { useState } from 'react'
-import {GoogleGenAI} from '@google/genai';
+import React, { useState, useCallback, useEffect } from 'react';
+import { Sun, Moon, Sparkles, RotateCcw, AlertCircle } from 'lucide-react';
+import { Toaster } from 'react-hot-toast';
+import toast from 'react-hot-toast';
 
-
+import { CodeAnalyzer } from '../utils/codeAnalyzer';
+import { useLocalStorage, useReviewHistory } from '../hooks/useLocalStorage';
+import CodeEditor from './CodeEditor';
+import ReviewResult from './ReviewResult';
+import ReviewHistory from './ReviewHistory';
+import LoadingSpinner from './LoadingSpinner';
 
 const Home = () => {
-    const [code,setCode]=useState("");
-    const [reviewCode,setReviewCode]=useState("");
-    const [loading,setLoading]=useState(false);
-    const [dark,setDark]=useState(true);
+  const [code, setCode] = useState("");
+  const [reviewResult, setReviewResult] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [language, setLanguage] = useState('auto');
+  const [dark, setDark] = useLocalStorage('darkMode', true);
+  
+  const { addToHistory } = useReviewHistory();
+  const [analyzer, setAnalyzer] = useState(null);
 
+  // Initialize analyzer
+  useEffect(() => {
+    const apiKey = process.env.REACT_APP_GEMINI_API;
+    if (apiKey) {
+      try {
+        setAnalyzer(new CodeAnalyzer(apiKey));
+      } catch (err) {
+        setError("Failed to initialize AI analyzer. Please check your API key.");
+      }
+    } else {
+      setError("API key not found. Please set REACT_APP_GEMINI_API in your environment variables.");
+    }
+  }, []);
 
-   const handleClear = ()=>{
+  const handleClear = useCallback(() => {
     setCode("");
-    setReviewCode("");
-    setLoading(false);
-   }
+    setReviewResult("");
+    setError("");
+    setLanguage('auto');
+  }, []);
 
+  const handleReviewCode = useCallback(async () => {
+    if (!code.trim()) {
+      toast.error("Please enter some code to review");
+      return;
+    }
 
+    if (!analyzer) {
+      toast.error("AI analyzer not initialized");
+      return;
+    }
 
-    const handleReviewCode = async()=>{
-      setLoading(true);
-      const prompt = `
-      You are an experienced developer. Analyze and review the following code:
-      - Provide a summary
-      - Detect bugs or issues
-      - Suggest improvements and optimizations code:${code}`;
-      const ai = new GoogleGenAI({ apiKey: process.env.REACT_APP_GEMINI_API});
-      const response = await ai.models.generateContent({
-                model: "gemini-2.0-flash",
-                contents: prompt,
-                config: {
-                        tools: [{ codeExecution: {} }],
-                        },
-            });
-           
-     const parts = response?.candidates?.[0]?.content?.parts || [];
+    setLoading(true);
+    setError("");
 
-     const data=parts.map(part=>part.text).join('\n\n');
-     setReviewCode(data);
-     console.log(data);
-};
+    try {
+      // Auto-detect language if set to auto
+      const detectedLanguage = language === 'auto' ? analyzer.detectLanguage(code) : language;
+      
+      const result = await analyzer.analyzeCode(code, detectedLanguage);
+      
+      setReviewResult(result);
+      
+      // Add to history
+      addToHistory({
+        code,
+        result,
+        language: detectedLanguage
+      });
+
+      toast.success("Code review completed!");
+    } catch (err) {
+      console.error('Review error:', err);
+      setError(err.message || "Failed to analyze code. Please try again.");
+      toast.error("Failed to analyze code");
+    } finally {
+      setLoading(false);
+    }
+  }, [code, language, analyzer, addToHistory]);
+
+  const handleLoadFromHistory = useCallback((review) => {
+    setCode(review.code);
+    setReviewResult(review.result);
+    setLanguage(review.language || 'auto');
+    toast.success("Review loaded from history");
+  }, []);
+
+  const toggleTheme = useCallback(() => {
+    setDark(prev => !prev);
+  }, [setDark]);
 
   return (
     <>
-   
-        
-    <div className={`min-h-screen p-8 flex flex-col ${dark?"bg-black text-white":"bg-gray-100"}`}>  
-       {dark ? <img onClick={()=>setDark(false)} className='w-11 h-11 rounded-3xl cursor-pointer' alt='dark-mode-on' src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSYpaKupXAgRs3FxQHb0jTauOvDTNZdv7zGfnuCdy6saNz7g3BP1gdOQpJGE7cdQRlAg4A&usqp=CAU"/>
-         : <img onClick={()=>setDark(true)}className='w-11 h-11 rounded-3xl cursor-pointer' alt='dark-mode-off' src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT4D3dmnbuy70dN-91V3CbRUX_b9CKfrvcbf2yd7asnX0wDhmDNf7eKg10z3H93qgDhoTg&usqp=CAU"/>
-        }
-       
-        <h1 className='text-3xl mb-4 font-bold flex flex-col items-center '>Ai Code Reviewer</h1>
-        <div className='flex flex-col items-center w-full '>
-            <textarea
-              className={`
-                h-40 sm:h-96 
-                w-full sm:w-1/2 
-                p-4 font-mono rounded-3xl overflow-auto hide-scrollbar
-                ${dark
-                  ? "bg-black text-white border-gray-600 placeholder-gray-400"
-                  : "bg-white text-black border-gray-300 placeholder-gray-500"
-                } border`
-              }
-              placeholder='paste code here..'
-              onChange={(e) => setCode(e.target.value)}
-              value={code}
-            />
-
-          
-        </div>
-        
-     <div className='flex justify-center items-center mt-4'>
-          <button
-        className='bg-blue-600 text-white rounded hover:bg-blue-700 w-20 h-8'
-        onClick={handleReviewCode}
-        
-        >{loading?"Reviewing..":"Review"}</button>
-
-        <button 
-         className='ml-4 bg-blue-600 text-white rounded hover:bg-blue-700 w-20 h-8 flex items-center justify-center'
-         onClick={handleClear}
-        >Clear</button>
-     </div>
-        
-        {reviewCode && (
-          <div className="flex justify-center mt-6">
-            <div className={`p-4 rounded-3xl w-full max-w-4xl ${
-              dark
-                ? "bg-black text-white border border-gray-600 placeholder-gray-400"
-                : "bg-white text-black border border-gray-300 placeholder-gray-500"
-            }`}>
-              <h2 className='text-xl font-semibold mb-2'>Review Result:</h2>
-              <pre className='whitespace-pre-wrap font-mono'>{reviewCode}</pre>
+      <Toaster 
+        position="top-right"
+        toastOptions={{
+          duration: 4000,
+          style: {
+            background: dark ? '#374151' : '#ffffff',
+            color: dark ? '#ffffff' : '#000000',
+            border: dark ? '1px solid #4B5563' : '1px solid #E5E7EB'
+          }
+        }}
+      />
+      
+      <div className={`min-h-screen transition-colors duration-300 ${
+        dark ? "bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white" 
+             : "bg-gradient-to-br from-gray-50 via-white to-gray-100 text-gray-900"
+      }`}>
+        {/* Header */}
+        <header className="sticky top-0 z-30 backdrop-blur-sm bg-opacity-80 border-b border-opacity-20">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between h-16">
+              <div className="flex items-center space-x-3">
+                <div className={`p-2 rounded-lg ${dark ? "bg-blue-600" : "bg-blue-500"}`}>
+                  <Sparkles className="w-6 h-6 text-white" />
+                </div>
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                  AI Code Reviewer
+                </h1>
+              </div>
+              
+              <button
+                onClick={toggleTheme}
+                className={`p-2 rounded-lg transition-all duration-200 hover:scale-105 ${
+                  dark 
+                    ? "bg-gray-700 hover:bg-gray-600 text-yellow-400" 
+                    : "bg-gray-200 hover:bg-gray-300 text-gray-700"
+                }`}
+                title={`Switch to ${dark ? 'light' : 'dark'} mode`}
+              >
+                {dark ? <Sun size={20} /> : <Moon size={20} />}
+              </button>
             </div>
           </div>
-        )}
-      
-    </div>
+        </header>
+
+        {/* Main Content */}
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {/* Error Display */}
+          {error && (
+            <div className={`mb-6 p-4 rounded-lg border-l-4 border-red-500 ${
+              dark ? "bg-red-900 bg-opacity-20 text-red-300" : "bg-red-50 text-red-700"
+            }`}>
+              <div className="flex items-center">
+                <AlertCircle size={20} className="mr-2" />
+                <span className="font-medium">Error:</span>
+              </div>
+              <p className="mt-1">{error}</p>
+            </div>
+          )}
+
+          {/* Code Input Section */}
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold">Code Input</h2>
+              <div className="text-sm text-gray-500">
+                Paste your code below for AI-powered analysis
+              </div>
+            </div>
+            
+            <CodeEditor
+              code={code}
+              onChange={setCode}
+              language={language}
+              onLanguageChange={setLanguage}
+              dark={dark}
+              placeholder="Paste your code here for comprehensive AI analysis..."
+            />
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex flex-wrap items-center justify-center gap-4 mb-8">
+            <button
+              onClick={handleReviewCode}
+              disabled={loading || !code.trim() || !analyzer}
+              className={`
+                px-8 py-3 rounded-lg font-medium transition-all duration-200 
+                flex items-center space-x-2 min-w-[140px] justify-center
+                ${loading || !code.trim() || !analyzer
+                  ? "bg-gray-400 cursor-not-allowed text-gray-200"
+                  : dark
+                  ? "bg-blue-600 hover:bg-blue-700 text-white hover:shadow-lg hover:scale-105"
+                  : "bg-blue-500 hover:bg-blue-600 text-white hover:shadow-lg hover:scale-105"
+                }
+              `}
+            >
+              <Sparkles size={18} />
+              <span>{loading ? "Analyzing..." : "Review Code"}</span>
+            </button>
+
+            <button
+              onClick={handleClear}
+              disabled={loading}
+              className={`
+                px-6 py-3 rounded-lg font-medium transition-all duration-200 
+                flex items-center space-x-2
+                ${loading
+                  ? "bg-gray-400 cursor-not-allowed text-gray-200"
+                  : dark
+                  ? "bg-gray-700 hover:bg-gray-600 text-gray-300"
+                  : "bg-gray-200 hover:bg-gray-300 text-gray-700"
+                }
+              `}
+            >
+              <RotateCcw size={18} />
+              <span>Clear</span>
+            </button>
+          </div>
+
+          {/* Loading State */}
+          {loading && (
+            <LoadingSpinner dark={dark} />
+          )}
+
+          {/* Review Results */}
+          {reviewResult && !loading && (
+            <ReviewResult 
+              result={reviewResult} 
+              dark={dark} 
+              code={code}
+              language={language}
+            />
+          )}
+        </main>
+
+        {/* Review History */}
+        <ReviewHistory 
+          dark={dark} 
+          onLoadReview={handleLoadFromHistory}
+        />
+      </div>
     </>
-  )
-}
+  );
+};
 
 export default Home;
