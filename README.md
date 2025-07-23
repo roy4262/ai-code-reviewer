@@ -6,6 +6,8 @@ A modern, professional web application that provides comprehensive AI-powered co
 ![React](https://img.shields.io/badge/React-18.x-61DAFB?style=for-the-badge&logo=react)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind-CSS-38B2AC?style=for-the-badge&logo=tailwind-css)
 ![Gemini AI](https://img.shields.io/badge/Gemini-AI-4285F4?style=for-the-badge&logo=google)
+<img width="1912" height="1145" alt="Screenshot 2025-07-23 155022" src="https://github.com/user-attachments/assets/694d69b1-837d-470a-b7a6-23d34d2bb990" />
+
 
 ## ✨ Features
 
